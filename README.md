@@ -1,123 +1,84 @@
-# AWS PySpark Data Lake
+# Royal Orchid Data Lake Project
 
-A data lake project based on the **Medallion Architecture (Bronze → Silver → Gold)** using Amazon S3, PySpark, Parquet, and Amazon Athena.
+AWS S3 and PySpark data lake implementing the **Bronze → Silver → Gold** architecture.
 
-> **Project status:** This repository is initialized with documentation and a starter structure. Add your actual pipeline scripts, sample data, and execution evidence as they become available.
+## Project overview
 
-## Overview
-
-The intended workflow ingests raw data, cleans and transforms it with PySpark, stores optimized datasets in S3, and exposes curated data for SQL analytics.
+The project processes orders and restaurant CSV data through three data lake layers. The PySpark job reads the raw files from Amazon S3, applies type conversions, stores the Silver datasets in Parquet, enriches orders with restaurant information, and produces aggregated daily metrics in the Gold layer.
 
 ## Architecture
 
-```mermaid
-flowchart LR
-    A[Raw CSV data] --> B[S3 Bronze]
-    B --> C[PySpark ETL]
-    C --> D[S3 Silver - Parquet]
-    D --> E[Gold aggregations]
-    E --> F[S3 Gold]
-    F --> G[Amazon Athena]
-    G --> H[SQL analytics]
-```
-
-## Technology Stack
-
-| Technology | Purpose |
-|---|---|
-| Amazon S3 | Data lake storage |
-| Python | ETL scripting |
-| PySpark | Data processing and transformation |
-| Apache Parquet | Columnar output format |
-| Amazon Athena | SQL analytics |
-| Amazon EC2 | ETL compute environment, if used |
-| AWS IAM | Access control |
-
-## Medallion Layers
-
-### Bronze — Raw
-- Store ingested source files in their original format.
-- Preserve raw data for traceability and reprocessing.
-- Organize files with consistent S3 prefixes.
-
-### Silver — Cleaned
-- Validate and clean incoming records.
-- Handle missing or inconsistent values.
-- Standardize columns and data types.
-- Write validated datasets in Parquet format.
-
-### Gold — Curated
-- Produce business-ready datasets and aggregations.
-- Prepare metrics such as daily sales totals when supported by the source data.
-- Make curated outputs available for querying.
-
-## Suggested Repository Structure
-
 ```text
-aws-pyspark-data-lake/
-├── data/
-│   └── README.md
-├── src/
-│   ├── bronze/README.md
-│   ├── silver/README.md
-│   └── gold/README.md
-├── sql/README.md
-├── docs/README.md
-├── .gitignore
-└── README.md
+Orders CSV ───────┐
+                  ├──> S3 Bronze ──> PySpark ETL ──> S3 Silver (Parquet)
+Restaurant CSV ───┘                                  │
+                                                    v
+                                         Join + daily aggregations
+                                                    │
+                                                    v
+                                         S3 Gold (daily metrics)
 ```
 
-## Workflow
+## Medallion layers
 
-1. Upload source CSV files to the Bronze S3 location.
-2. Read the raw data using PySpark.
-3. Clean and validate records, then write Silver outputs in Parquet.
-4. Generate curated Gold aggregations.
-5. Define or update external tables in Athena.
-6. Run SQL queries and validate the results.
+### Bronze — Raw data
 
-## Setup
+The job reads the source CSV datasets from:
 
-Exact commands depend on the AWS region, bucket names, input schema, and execution environment. Add these project-specific values before documenting runnable commands.
+- `s3a://athi-bronze/orders/`
+- `s3a://athi-bronze/restaurant/`
 
-Prerequisites typically include:
-- An AWS account and S3 bucket.
-- IAM permissions for the required S3 operations.
-- Python and a compatible PySpark installation.
-- Athena access for SQL querying.
+### Silver — Cleaned data
 
-**Security:** Never commit AWS access keys, secret keys, `.env` files, private datasets, or other credentials. Prefer IAM roles or another secure credential provider.
+The orders dataset is standardized by converting `order_date` to a date, `sales_qty` to an integer, and `sales_amount` to a double. Orders are written as Parquet partitioned by `order_date`. Restaurant data is also written as Parquet.
 
-## Illustrative Athena Query
+Output locations:
 
-Update the table and column names to match the actual Athena schema.
+- `s3a://athi-silver/orders/`
+- `s3a://athi-silver/restaurant/`
 
-```sql
-SELECT
-    order_date,
-    SUM(sales_amount) AS total_sales
-FROM gold_sales
-GROUP BY order_date
-ORDER BY order_date;
+### Gold — Aggregated metrics
+
+The pipeline joins Silver orders with Silver restaurant data using `r_id`, then groups by order date and restaurant attributes. It calculates:
+
+- `total_orders`
+- `total_quantity`
+- `total_revenue`
+
+The Gold output is written as Parquet partitioned by `order_date` to:
+
+- `s3a://athi-gold/daily_metrics/`
+
+## Source code
+
+- [`royal_orchid_etl.py`](royal_orchid_etl.py) — uploaded PySpark ETL pipeline.
+
+## Technologies used
+
+- Amazon S3
+- PySpark
+- Python
+- Apache Parquet
+- Partitioning
+- Medallion Data Lake Architecture
+
+## Run the pipeline
+
+Run the script from a Spark environment configured with access to the S3 locations and the S3A connector:
+
+```bash
+spark-submit royal_orchid_etl.py
 ```
 
-## Validation Checklist
+The Spark environment must have compatible Hadoop AWS / S3A dependencies and AWS credentials or an IAM role that can access the Bronze, Silver, and Gold prefixes.
 
-- [ ] Raw input files are present in the Bronze S3 location.
-- [ ] Silver transformations handle missing and inconsistent values.
-- [ ] Parquet outputs can be read successfully.
-- [ ] Gold aggregations reconcile with cleaned source data.
-- [ ] Athena tables point to the correct S3 locations.
-- [ ] SQL query results have been validated.
+## Important notes
 
-## Potential Improvements
-
-- Add automated data-quality checks.
-- Orchestrate the pipeline with Apache Airflow.
-- Add structured logging and error handling.
-- Include screenshots and sample query outputs as execution evidence.
+- The script writes output using `mode("overwrite")`, so existing data at the Silver and Gold output paths will be replaced on each run.
+- The source files must contain the columns referenced by the script: orders (`order_date`, `sales_qty`, `sales_amount`, `r_id`) and restaurants (`r_id`, `name`, `cuisine`, `city`).
+- This repository contains the uploaded script and project documentation. Dataset files and execution screenshots were not present among the project files I located.
+- Never commit AWS access keys, secret keys, or private datasets.
 
 ## Author
 
-**Athish M.A.**  
-GitHub: [@athish202403-hue](https://github.com/athish202403-hue)
+Athish
