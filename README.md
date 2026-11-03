@@ -82,7 +82,7 @@ The SQL files target the table shown in the uploaded Athena screenshots: `food_a
 - `sql/03_city_revenue.sql`
 - `sql/04_restaurant_revenue.sql`
 
-The screenshots show completed Athena queries. Sample results are documented in [docs/athena-results.md](docs/athena-results.md).
+The uploaded Spark, S3, and Athena evidence is summarized in [docs/execution-notes.md](docs/execution-notes.md). Sample query results are documented in [docs/athena-results.md](docs/athena-results.md).
 
 ## Important execution notes
 
